@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import com.coffeeshop.security.RequireRole;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -22,11 +23,9 @@ public class ReportController {
     @Autowired
     private OrderService orderService;
 
-    @Autowired
-    private PaymentService paymentService;
-
     @GetMapping("/dashboard")
     @Operation(summary = "Get daily summary metrics for Admin Dashboard")
+    @RequireRole({"ADMIN"})
     public Map<String, Object> getDashboardMetrics() {
         List<Order> orders = orderService.getAllOrders();
         

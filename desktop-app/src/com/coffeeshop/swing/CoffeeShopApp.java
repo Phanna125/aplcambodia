@@ -1,82 +1,91 @@
 package com.coffeeshop.swing;
 
+import com.google.gson.reflect.TypeToken;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.math.BigDecimal;
+import java.io.OutputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class CoffeeShopApp extends JFrame {
+    
+    // Auth State
+    private static String currentUserRole = null;
+    private static String currentUserName = null;
 
     // Theme Colors
-    private static final Color COLOR_PRIMARY = new Color(111, 78, 55);    // Coffee Brown
-    private static final Color COLOR_SECONDARY = new Color(195, 155, 119); // Latte Tan
-    private static final Color COLOR_BG = new Color(248, 245, 240);       // Warm Cream
-    private static final Color COLOR_ACCENT = new Color(40, 167, 69);      // Success Green
-    private static final Color COLOR_TEXT = new Color(40, 30, 20);
+    private static final Color COLOR_PRIMARY = new Color(111, 78, 55);
+    private static final Color COLOR_SECONDARY = new Color(195, 155, 119);
+    private static final Color COLOR_BG = new Color(248, 245, 240);
+    private static final Color COLOR_ACCENT = new Color(40, 167, 69);
+    private static final Color COLOR_DANGER = new Color(220, 53, 69);
 
-    // Mock Data Models
+    // API Data Models
     static class Category {
-        int id; String name;
-        Category(int id, String name) { this.id = id; this.name = name; }
+        Long id; String name;
         @Override public String toString() { return name; }
     }
 
     static class MenuItem {
-        int id; String name; double price; Category category; boolean active;
-        MenuItem(int id, String name, double price, Category category, boolean active) {
-            this.id = id; this.name = name; this.price = price; this.category = category; this.active = active;
-        }
-        @Override public String toString() { return name + " ($" + String.format("%.2f", price) + ")"; }
+        Long id; String name; double basePrice; Category category; boolean active;
+        @Override public String toString() { return name + " ($" + String.format("%.2f", basePrice) + ")"; }
     }
 
-    static class CartItem {
-        MenuItem menuItem;
-        int quantity;
-        List<String> customizations;
-        double itemTotal;
+    static class Customization {
+        Long id; String name; double priceImpact;
+    }
 
-        CartItem(MenuItem menuItem, int quantity, List<String> customizations, double itemTotal) {
-            this.menuItem = menuItem;
-            this.quantity = quantity;
-            this.customizations = customizations;
-            this.itemTotal = itemTotal;
-        }
+    static class User {
+        Long id; String name;
     }
 
     static class Order {
-        int orderId;
-        String customerName;
-        String status; // PENDING, BREWING, COMPLETED
-        double totalAmount;
-        List<CartItem> items;
+        Long id; User customer; String status; double totalAmount;
+    }
 
-        Order(int orderId, String customerName, String status, double totalAmount, List<CartItem> items) {
-            this.orderId = orderId;
-            this.customerName = customerName;
-            this.status = status;
-            this.totalAmount = totalAmount;
-            this.items = items;
+    static class OrderItemRequestDTO {
+        Long menuItemId; int quantity = 1; List<Long> customizationIds = new ArrayList<>();
+    }
+
+    static class OrderRequestDTO {
+        Long customerId; List<OrderItemRequestDTO> items = new ArrayList<>();
+    }
+    
+    static class OrderStatusUpdateDTO {
+        String status;
+        OrderStatusUpdateDTO(String status) { this.status = status; }
+    }
+
+    // UI Internal Models
+    static class CartItem {
+        MenuItem menuItem; int quantity; List<Customization> customizations; double itemTotal;
+        CartItem(MenuItem menuItem, int quantity, List<Customization> customizations, double itemTotal) {
+            this.menuItem = menuItem; this.quantity = quantity; this.customizations = customizations; this.itemTotal = itemTotal;
         }
     }
 
-    // In-memory lists
+    // In-memory lists (sync with API)
     private List<Category> categories = new ArrayList<>();
     private List<MenuItem> menuItems = new ArrayList<>();
+    private List<Customization> allCustomizations = new ArrayList<>();
     private List<CartItem> currentCart = new ArrayList<>();
     private List<Order> orderQueue = new ArrayList<>();
-
-    private int nextOrderId = 101;
 
     // UI Components
     private JTabbedPane mainTabbedPane;
     private DefaultTableModel cartTableModel;
     private JLabel cartTotalLabel;
     private JPanel drinkGridPanel;
+    private JComboBox<String> categoryCombo;
     private DefaultTableModel queueTableModel;
     private DefaultTableModel adminMenuTableModel;
     private JLabel revenueMetricLabel;
@@ -88,56 +97,77 @@ public class CoffeeShopApp extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        initSampleData();
+        // Load initial data from API
+        loadDataFromApi();
 
         // Top Header
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(COLOR_PRIMARY);
         headerPanel.setBorder(new EmptyBorder(12, 20, 12, 20));
 
-        JLabel titleLabel = new JLabel("☕ COFFEE ORDERING SYSTEM");
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 22));
+        JLabel titleLabel = new JLabel("☕ COFFEE ORDERING SYSTEM - Logged in as: " + currentUserName + " (" + currentUserRole + ")");
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
         titleLabel.setForeground(Color.WHITE);
 
-        JLabel subtitleLabel = new JLabel("Role-Based Management & POS System (Assignment 1 & 2)");
-        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        subtitleLabel.setForeground(COLOR_SECONDARY);
-
         headerPanel.add(titleLabel, BorderLayout.WEST);
-        headerPanel.add(subtitleLabel, BorderLayout.EAST);
-
-        // Main Tabbed Interface
+        
         mainTabbedPane = new JTabbedPane();
         mainTabbedPane.setFont(new Font("SansSerif", Font.BOLD, 14));
         mainTabbedPane.setBackground(COLOR_BG);
 
-        mainTabbedPane.addTab("🛒 Cashier POS", createCashierPOSPanel());
-        mainTabbedPane.addTab("☕ Barista Queue", createBaristaQueuePanel());
-        mainTabbedPane.addTab("⚙️ Admin Dashboard & Menu", createAdminPanel());
-
         add(headerPanel, BorderLayout.NORTH);
         add(mainTabbedPane, BorderLayout.CENTER);
+        
+        // Build UI based on role
+        if ("ADMIN".equals(currentUserRole)) {
+            mainTabbedPane.addTab("🛒 Cashier POS", createCashierPOSPanel());
+            mainTabbedPane.addTab("☕ Barista Queue", createBaristaQueuePanel());
+            mainTabbedPane.addTab("⚙️ Admin Dashboard & Menu", createAdminPanel());
+        } else if ("CASHIER".equals(currentUserRole)) {
+            mainTabbedPane.addTab("🛒 Cashier POS", createCashierPOSPanel());
+        } else if ("BARISTA".equals(currentUserRole)) {
+            mainTabbedPane.addTab("☕ Barista Queue", createBaristaQueuePanel());
+        } else {
+            mainTabbedPane.addTab("🛒 Menu", createCashierPOSPanel());
+        }
+        
+        // Start background poll for barista queue
+        Timer timer = new Timer(5000, e -> {
+            if ("ADMIN".equals(currentUserRole) || "BARISTA".equals(currentUserRole)) {
+                fetchOrderQueue();
+            }
+            if ("ADMIN".equals(currentUserRole)) {
+                updateAdminMetrics();
+            }
+        });
+        timer.start();
     }
 
-    private void initSampleData() {
-        Category hot = new Category(1, "Hot Drinks");
-        Category iced = new Category(2, "Iced Drinks");
-        Category frappe = new Category(3, "Frappes");
-        Category pastry = new Category(4, "Pastries");
+    private void loadDataFromApi() {
+        try {
+            categories = ApiClient.get("/menu/categories", new TypeToken<List<Category>>(){});
+            if ("ADMIN".equals(currentUserRole)) {
+                menuItems = ApiClient.get("/menu/items/all", new TypeToken<List<MenuItem>>(){});
+            } else {
+                menuItems = ApiClient.get("/menu/items", new TypeToken<List<MenuItem>>(){});
+            }
+            allCustomizations = ApiClient.get("/menu/customizations", new TypeToken<List<Customization>>(){});
+            
+            if ("ADMIN".equals(currentUserRole) || "BARISTA".equals(currentUserRole)) {
+                fetchOrderQueue();
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Failed to load data from server: " + e.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
-        categories.add(hot); categories.add(iced); categories.add(frappe); categories.add(pastry);
-
-        menuItems.add(new MenuItem(1, "Hot Espresso", 2.00, hot, true));
-        menuItems.add(new MenuItem(2, "Hot Americano", 2.50, hot, true));
-        menuItems.add(new MenuItem(3, "Hot Cappuccino", 3.00, hot, true));
-        menuItems.add(new MenuItem(4, "Iced Latte", 3.50, iced, true));
-        menuItems.add(new MenuItem(5, "Iced Matcha Latte", 4.00, iced, true));
-        menuItems.add(new MenuItem(6, "Caramel Frappe", 4.50, frappe, true));
-        menuItems.add(new MenuItem(7, "Butter Croissant", 2.25, pastry, true));
-
-        // Sample Orders
-        orderQueue.add(new Order(nextOrderId++, "Walk-in Customer", "PENDING", 4.25, new ArrayList<>()));
-        orderQueue.add(new Order(nextOrderId++, "Bopha (Remote)", "BREWING", 7.50, new ArrayList<>()));
+    private void fetchOrderQueue() {
+        try {
+            orderQueue = ApiClient.get("/orders/queue", new TypeToken<List<Order>>(){});
+            refreshQueueTable();
+        } catch (Exception e) {
+            System.err.println("Failed to fetch queue: " + e.getMessage());
+        }
     }
 
     // --- 1. CASHIER POS PANEL ---
@@ -146,24 +176,25 @@ public class CoffeeShopApp extends JFrame {
         panel.setBackground(COLOR_BG);
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        // Left Side: Drink Selection
         JPanel leftPanel = new JPanel(new BorderLayout(10, 10));
         leftPanel.setOpaque(false);
 
-        // Category Filter Toolbar
         JPanel categoryBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 5));
         categoryBar.setOpaque(false);
         categoryBar.add(new JLabel("Category:"));
 
-        JComboBox<String> categoryCombo = new JComboBox<>();
+        categoryCombo = new JComboBox<>();
         categoryCombo.addItem("All Items");
         for (Category c : categories) categoryCombo.addItem(c.name);
         categoryCombo.addActionListener(e -> refreshDrinkGrid((String) categoryCombo.getSelectedItem()));
         categoryBar.add(categoryCombo);
 
+        JButton refreshMenuBtn = new JButton("🔄 Refresh Menu");
+        refreshMenuBtn.addActionListener(e -> { loadDataFromApi(); refreshDrinkGrid((String) categoryCombo.getSelectedItem()); });
+        categoryBar.add(refreshMenuBtn);
+
         leftPanel.add(categoryBar, BorderLayout.NORTH);
 
-        // Drink Buttons Grid
         drinkGridPanel = new JPanel(new GridLayout(0, 3, 12, 12));
         drinkGridPanel.setOpaque(false);
         refreshDrinkGrid("All Items");
@@ -172,7 +203,6 @@ public class CoffeeShopApp extends JFrame {
         drinkScrollPane.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_SECONDARY), "Menu Catalog"));
         leftPanel.add(drinkScrollPane, BorderLayout.CENTER);
 
-        // Right Side: Shopping Cart & Checkout
         JPanel rightPanel = new JPanel(new BorderLayout(10, 10));
         rightPanel.setPreferredSize(new Dimension(380, 0));
         rightPanel.setBackground(Color.WHITE);
@@ -187,7 +217,6 @@ public class CoffeeShopApp extends JFrame {
         cartTable.setRowHeight(24);
         rightPanel.add(new JScrollPane(cartTable), BorderLayout.CENTER);
 
-        // Cart Actions & Checkout Summary
         JPanel checkoutBottomPanel = new JPanel(new GridLayout(4, 1, 8, 8));
         checkoutBottomPanel.setOpaque(false);
 
@@ -201,13 +230,11 @@ public class CoffeeShopApp extends JFrame {
         JButton checkoutCashBtn = new JButton("💵 Checkout (Cash)");
         checkoutCashBtn.setBackground(COLOR_PRIMARY);
         checkoutCashBtn.setForeground(Color.WHITE);
-        checkoutCashBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
         checkoutCashBtn.addActionListener(e -> processCheckout("CASH"));
 
         JButton checkoutQRBtn = new JButton("📱 Checkout (KHQR Code)");
         checkoutQRBtn.setBackground(COLOR_ACCENT);
         checkoutQRBtn.setForeground(Color.WHITE);
-        checkoutQRBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
         checkoutQRBtn.addActionListener(e -> processCheckout("QR_CODE"));
 
         checkoutBottomPanel.add(cartTotalLabel);
@@ -224,12 +251,11 @@ public class CoffeeShopApp extends JFrame {
 
     private void refreshDrinkGrid(String categoryFilter) {
         drinkGridPanel.removeAll();
-
         for (MenuItem item : menuItems) {
             if (!item.active) continue;
-            if (!"All Items".equals(categoryFilter) && !item.category.name.equals(categoryFilter)) continue;
+            if (!"All Items".equals(categoryFilter) && item.category != null && !item.category.name.equals(categoryFilter)) continue;
 
-            JButton btn = new JButton("<html><center><b>" + item.name + "</b><br/><font color='#6F4E37'>$" + String.format("%.2f", item.price) + "</font></center></html>");
+            JButton btn = new JButton("<html><center><b>" + item.name + "</b><br/><font color='#6F4E37'>$" + String.format("%.2f", item.basePrice) + "</font></center></html>");
             btn.setFont(new Font("SansSerif", Font.PLAIN, 13));
             btn.setBackground(Color.WHITE);
             btn.setFocusPainted(false);
@@ -243,42 +269,43 @@ public class CoffeeShopApp extends JFrame {
     private void openCustomizationDialog(MenuItem item) {
         JDialog dialog = new JDialog(this, "Customize " + item.name, true);
         dialog.setLayout(new BorderLayout(10, 10));
-        dialog.setSize(340, 300);
+        dialog.setSize(340, 350);
         dialog.setLocationRelativeTo(this);
 
         JPanel panel = new JPanel(new GridLayout(0, 1, 8, 8));
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
-
-        JCheckBox extraShot = new JCheckBox("Extra Espresso Shot (+$0.75)");
-        JCheckBox oatMilk = new JCheckBox("Oat Milk Substitution (+$0.50)");
-        JCheckBox lessIce = new JCheckBox("Less Ice (50%)");
-        JCheckBox lessSugar = new JCheckBox("Less Sugar (50%)");
-
         panel.add(new JLabel("Select Customizations:"));
-        panel.add(extraShot);
-        panel.add(oatMilk);
-        panel.add(lessIce);
-        panel.add(lessSugar);
+
+        List<JCheckBox> checkBoxes = new ArrayList<>();
+        List<Customization> boundCustoms = new ArrayList<>();
+
+        for (Customization c : allCustomizations) {
+            JCheckBox cb = new JCheckBox(c.name + (c.priceImpact > 0 ? " (+$" + c.priceImpact + ")" : ""));
+            checkBoxes.add(cb);
+            boundCustoms.add(c);
+            panel.add(cb);
+        }
 
         JButton addBtn = new JButton("Add to Cart");
         addBtn.setBackground(COLOR_PRIMARY);
         addBtn.setForeground(Color.WHITE);
-        addBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
         addBtn.addActionListener(e -> {
-            List<String> customs = new ArrayList<>();
-            double itemTotal = item.price;
+            List<Customization> selected = new ArrayList<>();
+            double itemTotal = item.basePrice;
 
-            if (extraShot.isSelected()) { customs.add("Extra Shot"); itemTotal += 0.75; }
-            if (oatMilk.isSelected()) { customs.add("Oat Milk"); itemTotal += 0.50; }
-            if (lessIce.isSelected()) { customs.add("Less Ice"); }
-            if (lessSugar.isSelected()) { customs.add("Less Sugar"); }
-
-            currentCart.add(new CartItem(item, 1, customs, itemTotal));
+            for (int i = 0; i < checkBoxes.size(); i++) {
+                if (checkBoxes.get(i).isSelected()) {
+                    Customization c = boundCustoms.get(i);
+                    selected.add(c);
+                    itemTotal += c.priceImpact;
+                }
+            }
+            currentCart.add(new CartItem(item, 1, selected, itemTotal));
             updateCartTable();
             dialog.dispose();
         });
 
-        dialog.add(panel, BorderLayout.CENTER);
+        dialog.add(new JScrollPane(panel), BorderLayout.CENTER);
         dialog.add(addBtn, BorderLayout.SOUTH);
         dialog.setVisible(true);
     }
@@ -286,13 +313,12 @@ public class CoffeeShopApp extends JFrame {
     private void updateCartTable() {
         cartTableModel.setRowCount(0);
         double grandTotal = 0.0;
-
         for (CartItem ci : currentCart) {
-            String details = ci.menuItem.name + (ci.customizations.isEmpty() ? "" : " (" + String.join(", ", ci.customizations) + ")");
-            cartTableModel.addRow(new Object[]{details, ci.quantity, "$" + String.format("%.2f", ci.menuItem.price), "$" + String.format("%.2f", ci.itemTotal)});
+            List<String> names = ci.customizations.stream().map(c -> c.name).collect(Collectors.toList());
+            String details = ci.menuItem.name + (names.isEmpty() ? "" : " (" + String.join(", ", names) + ")");
+            cartTableModel.addRow(new Object[]{details, ci.quantity, "$" + String.format("%.2f", ci.menuItem.basePrice), "$" + String.format("%.2f", ci.itemTotal)});
             grandTotal += ci.itemTotal;
         }
-
         cartTotalLabel.setText("Total: $" + String.format("%.2f", grandTotal));
     }
 
@@ -303,25 +329,28 @@ public class CoffeeShopApp extends JFrame {
 
     private void processCheckout(String paymentMethod) {
         if (currentCart.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Cart is empty! Select drinks first.", "Warning", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Cart is empty!", "Warning", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        
+        OrderRequestDTO req = new OrderRequestDTO();
+        for (CartItem ci : currentCart) {
+            OrderItemRequestDTO itemReq = new OrderItemRequestDTO();
+            itemReq.menuItemId = ci.menuItem.id;
+            itemReq.quantity = ci.quantity;
+            itemReq.customizationIds = ci.customizations.stream().map(c -> c.id).collect(Collectors.toList());
+            req.items.add(itemReq);
+        }
 
-        double total = currentCart.stream().mapToDouble(c -> c.itemTotal).sum();
-        Order newOrder = new Order(nextOrderId++, "Walk-in Customer", "PENDING", total, new ArrayList<>(currentCart));
-        orderQueue.add(newOrder);
-
-        refreshQueueTable();
-        updateAdminMetrics();
-
-        JOptionPane.showMessageDialog(this,
-                "✅ Order #" + newOrder.orderId + " Created Successfully!\n" +
-                "Payment Method: " + paymentMethod + "\n" +
-                "Total Paid: $" + String.format("%.2f", total) + "\n" +
-                "Order status set to PENDING for Barista.",
-                "Order Receipt", JOptionPane.INFORMATION_MESSAGE);
-
-        clearCart();
+        try {
+            Order newOrder = ApiClient.post("/orders", req, Order.class);
+            fetchOrderQueue();
+            updateAdminMetrics();
+            JOptionPane.showMessageDialog(this, "✅ Order #" + newOrder.id + " Created Successfully!\nPayment: " + paymentMethod + "\nTotal: $" + newOrder.totalAmount, "Receipt", JOptionPane.INFORMATION_MESSAGE);
+            clearCart();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to create order: " + ex.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     // --- 2. BARISTA QUEUE PANEL ---
@@ -345,15 +374,18 @@ public class CoffeeShopApp extends JFrame {
         JPanel controlBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         controlBar.setOpaque(false);
 
+        JButton refreshBtn = new JButton("🔄 Refresh Queue");
+        refreshBtn.addActionListener(e -> fetchOrderQueue());
+
         JButton brewBtn = new JButton("▶️ Mark BREWING");
         brewBtn.addActionListener(e -> changeSelectedOrderStatus(queueTable, "BREWING"));
 
         JButton completeBtn = new JButton("✅ Mark COMPLETED");
         completeBtn.setBackground(COLOR_ACCENT);
         completeBtn.setForeground(Color.WHITE);
-        completeBtn.setFont(new Font("SansSerif", Font.BOLD, 13));
         completeBtn.addActionListener(e -> changeSelectedOrderStatus(queueTable, "COMPLETED"));
 
+        controlBar.add(refreshBtn);
         controlBar.add(brewBtn);
         controlBar.add(completeBtn);
         panel.add(controlBar, BorderLayout.SOUTH);
@@ -364,29 +396,28 @@ public class CoffeeShopApp extends JFrame {
     private void refreshQueueTable() {
         if (queueTableModel == null) return;
         queueTableModel.setRowCount(0);
-
         for (Order o : orderQueue) {
-            queueTableModel.addRow(new Object[]{
-                    "#" + o.orderId,
-                    o.customerName,
-                    "$" + String.format("%.2f", o.totalAmount),
-                    o.status,
+            String cName = o.customer != null ? o.customer.name : "Walk-in";
+            queueTableModel.addRow(new Object[]{ "#" + o.id, cName, "$" + String.format("%.2f", o.totalAmount), o.status,
                     o.status.equals("PENDING") ? "Brew Drink" : o.status.equals("BREWING") ? "Complete Order" : "Done"
             });
         }
     }
 
     private void changeSelectedOrderStatus(JTable queueTable, String newStatus) {
-        int selectedRow = queueTable.getSelectedRow();
-        if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(this, "Please select an order from the queue table.", "Notice", JOptionPane.WARNING_MESSAGE);
+        int row = queueTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select an order first.", "Notice", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
-        Order order = orderQueue.get(selectedRow);
-        order.status = newStatus;
-        refreshQueueTable();
-        updateAdminMetrics();
+        Order order = orderQueue.get(row);
+        try {
+            ApiClient.patch("/orders/" + order.id + "/status", new OrderStatusUpdateDTO(newStatus), Order.class);
+            fetchOrderQueue();
+            updateAdminMetrics();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Update failed: " + ex.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     // --- 3. ADMIN DASHBOARD & MENU PANEL ---
@@ -395,7 +426,6 @@ public class CoffeeShopApp extends JFrame {
         panel.setBackground(COLOR_BG);
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        // Top Metrics Cards
         JPanel metricsPanel = new JPanel(new GridLayout(1, 2, 15, 15));
         metricsPanel.setOpaque(false);
 
@@ -425,7 +455,6 @@ public class CoffeeShopApp extends JFrame {
         metricsPanel.add(orderCard);
         panel.add(metricsPanel, BorderLayout.NORTH);
 
-        // Center: Menu Item Manager Table
         String[] columns = {"ID", "Item Name", "Base Price", "Category", "Status"};
         adminMenuTableModel = new DefaultTableModel(columns, 0);
         JTable menuTable = new JTable(adminMenuTableModel);
@@ -436,26 +465,62 @@ public class CoffeeShopApp extends JFrame {
         tablePanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_PRIMARY), "Menu Items & Base Prices"));
         tablePanel.add(new JScrollPane(menuTable), BorderLayout.CENTER);
 
-        // Add / Edit Controls
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         actionPanel.setOpaque(false);
 
-        JButton addDrinkBtn = new JButton("➕ Add New Drink");
+        JButton addDrinkBtn = new JButton("➕ Add Drink");
         addDrinkBtn.addActionListener(e -> openAddDrinkDialog());
 
-        JButton toggleStatusBtn = new JButton("🔄 Toggle Stock Availability");
+        JButton editDrinkBtn = new JButton("✏️ Edit Drink");
+        editDrinkBtn.addActionListener(e -> {
+            int row = menuTable.getSelectedRow();
+            if (row >= 0) openEditDrinkDialog(menuItems.get(row));
+        });
+
+        JButton manageCatBtn = new JButton("📁 Manage Categories");
+        manageCatBtn.addActionListener(e -> openManageCategoriesDialog());
+
+        JButton toggleStatusBtn = new JButton("🔄 Toggle Stock");
         toggleStatusBtn.addActionListener(e -> {
-            int selectedRow = menuTable.getSelectedRow();
-            if (selectedRow >= 0) {
-                MenuItem item = menuItems.get(selectedRow);
+            int row = menuTable.getSelectedRow();
+            if (row >= 0) {
+                MenuItem item = menuItems.get(row);
                 item.active = !item.active;
-                refreshAdminMenuTable();
-                refreshDrinkGrid("All Items");
+                try {
+                    ApiClient.put("/menu/items/" + item.id, item, MenuItem.class);
+                    loadDataFromApi();
+                    refreshAdminMenuTable();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Update failed: " + ex.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
+                }
             }
         });
 
+        JButton deleteDrinkBtn = new JButton("🗑️ Delete Drink");
+        deleteDrinkBtn.setBackground(COLOR_DANGER);
+        deleteDrinkBtn.setForeground(Color.WHITE);
+        deleteDrinkBtn.addActionListener(e -> {
+            int row = menuTable.getSelectedRow();
+            if (row >= 0) {
+                MenuItem item = menuItems.get(row);
+                int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete " + item.name + "?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    try {
+                        ApiClient.delete("/menu/items/" + item.id);
+                        loadDataFromApi();
+                        refreshAdminMenuTable();
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(this, "Delete failed: " + ex.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }
+        });
+
+        actionPanel.add(manageCatBtn);
         actionPanel.add(addDrinkBtn);
+        actionPanel.add(editDrinkBtn);
         actionPanel.add(toggleStatusBtn);
+        actionPanel.add(deleteDrinkBtn);
         tablePanel.add(actionPanel, BorderLayout.SOUTH);
 
         panel.add(tablePanel, BorderLayout.CENTER);
@@ -467,65 +532,184 @@ public class CoffeeShopApp extends JFrame {
     private void refreshAdminMenuTable() {
         if (adminMenuTableModel == null) return;
         adminMenuTableModel.setRowCount(0);
-
         for (MenuItem item : menuItems) {
-            adminMenuTableModel.addRow(new Object[]{
-                    item.id,
-                    item.name,
-                    "$" + String.format("%.2f", item.price),
-                    item.category.name,
-                    item.active ? "In Stock" : "Out of Stock"
-            });
+            String catName = item.category != null ? item.category.name : "Uncategorized";
+            adminMenuTableModel.addRow(new Object[]{ item.id, item.name, "$" + String.format("%.2f", item.basePrice), catName, item.active ? "In Stock" : "Out of Stock" });
         }
     }
 
     private void openAddDrinkDialog() {
         JTextField nameField = new JTextField();
         JTextField priceField = new JTextField();
-        JComboBox<Category> categoryBox = new JComboBox<>(categories.toArray(new Category[0]));
+        JComboBox<Category> catBox = new JComboBox<>(categories.toArray(new Category[0]));
 
-        Object[] message = {
-                "Drink Name:", nameField,
-                "Base Price ($):", priceField,
-                "Category:", categoryBox
-        };
-
-        int option = JOptionPane.showConfirmDialog(this, message, "Add New Menu Item", JOptionPane.OK_CANCEL_OPTION);
+        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox };
+        int option = JOptionPane.showConfirmDialog(this, message, "Add Menu Item", JOptionPane.OK_CANCEL_OPTION);
         if (option == JOptionPane.OK_OPTION) {
             try {
-                String name = nameField.getText().trim();
-                double price = Double.parseDouble(priceField.getText().trim());
-                Category cat = (Category) categoryBox.getSelectedItem();
+                MenuItem newItem = new MenuItem();
+                newItem.name = nameField.getText().trim();
+                newItem.basePrice = Double.parseDouble(priceField.getText().trim());
+                newItem.category = (Category) catBox.getSelectedItem();
+                newItem.active = true;
 
-                MenuItem newItem = new MenuItem(menuItems.size() + 1, name, price, cat, true);
-                menuItems.add(newItem);
+                ApiClient.post("/menu/items", newItem, MenuItem.class);
+                loadDataFromApi();
                 refreshAdminMenuTable();
+                refreshCategoryCombo();
                 refreshDrinkGrid("All Items");
-
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Invalid inputs. Price must be a number.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
+    private void openEditDrinkDialog(MenuItem item) {
+        JTextField nameField = new JTextField(item.name);
+        JTextField priceField = new JTextField(String.valueOf(item.basePrice));
+        JComboBox<Category> catBox = new JComboBox<>(categories.toArray(new Category[0]));
+        for (int i = 0; i < categories.size(); i++) {
+            if (categories.get(i).id.equals(item.category.id)) catBox.setSelectedIndex(i);
+        }
+
+        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox };
+        int option = JOptionPane.showConfirmDialog(this, message, "Edit Menu Item", JOptionPane.OK_CANCEL_OPTION);
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                item.name = nameField.getText().trim();
+                item.basePrice = Double.parseDouble(priceField.getText().trim());
+                item.category = (Category) catBox.getSelectedItem();
+
+                ApiClient.put("/menu/items/" + item.id, item, MenuItem.class);
+                loadDataFromApi();
+                refreshAdminMenuTable();
+                refreshCategoryCombo();
+                refreshDrinkGrid("All Items");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void openManageCategoriesDialog() {
+        String catName = JOptionPane.showInputDialog(this, "Enter New Category Name:");
+        if (catName != null && !catName.trim().isEmpty()) {
+            try {
+                Category newCat = new Category();
+                newCat.name = catName.trim();
+                ApiClient.post("/menu/categories", newCat, Category.class);
+                loadDataFromApi();
+                refreshCategoryCombo();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to create category: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void refreshCategoryCombo() {
+        if (categoryCombo != null) {
+            categoryCombo.removeAllItems();
+            categoryCombo.addItem("All Items");
+            for (Category c : categories) categoryCombo.addItem(c.name);
+        }
+    }
+
     private void updateAdminMetrics() {
-        if (revenueMetricLabel == null || totalOrdersMetricLabel == null) return;
-
-        double totalRev = orderQueue.stream()
-                .filter(o -> o.status.equals("COMPLETED"))
-                .mapToDouble(o -> o.totalAmount)
-                .sum();
-
-        revenueMetricLabel.setText("$" + String.format("%.2f", totalRev));
-        totalOrdersMetricLabel.setText(String.valueOf(orderQueue.size()));
+        if (revenueMetricLabel == null) return;
+        try {
+            Map<String, Object> metrics = ApiClient.get("/reports/dashboard", new TypeToken<Map<String, Object>>(){});
+            if (metrics.containsKey("totalRevenue")) {
+                double rev = ((Number) metrics.get("totalRevenue")).doubleValue();
+                revenueMetricLabel.setText("$" + String.format("%.2f", rev));
+            }
+            if (metrics.containsKey("totalOrders")) {
+                int count = ((Number) metrics.get("totalOrders")).intValue();
+                totalOrdersMetricLabel.setText(String.valueOf(count));
+            }
+        } catch (Exception ex) {
+            System.err.println("Dashboard metric fetch failed: " + ex.getMessage());
+        }
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {}
-            new CoffeeShopApp().setVisible(true);
+            try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+            if (showLoginDialog()) {
+                new CoffeeShopApp().setVisible(true);
+            } else {
+                System.exit(0);
+            }
         });
+    }
+
+    private static boolean showLoginDialog() {
+        JDialog loginDialog = new JDialog((Frame) null, "Login - Coffee Shop", true);
+        loginDialog.setSize(350, 220);
+        loginDialog.setLocationRelativeTo(null);
+        loginDialog.setLayout(new BorderLayout());
+
+        JPanel formPanel = new JPanel(new GridLayout(3, 2, 10, 10));
+        formPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JTextField emailField = new JTextField("admin@coffeeshop.com");
+        JPasswordField passField = new JPasswordField("admin123");
+
+        formPanel.add(new JLabel("Email:"));
+        formPanel.add(emailField);
+        formPanel.add(new JLabel("Password:"));
+        formPanel.add(passField);
+
+        JButton loginBtn = new JButton("Login");
+        loginBtn.setBackground(COLOR_PRIMARY);
+        loginBtn.setForeground(Color.WHITE);
+        formPanel.add(new JLabel("")); // spacer
+        formPanel.add(loginBtn);
+
+        loginDialog.add(formPanel, BorderLayout.CENTER);
+
+        final boolean[] success = {false};
+
+        loginBtn.addActionListener(e -> {
+            String email = emailField.getText().trim();
+            String password = new String(passField.getPassword()).trim();
+            
+            try {
+                URL url = URI.create("http://localhost:8080/api/auth/login").toURL();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                
+                String jsonInput = "{\"email\": \"" + email + "\", \"password\": \"" + password + "\"}";
+                try(OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonInput.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) response.append(line.trim());
+                    String res = response.toString();
+                    
+                    if (res.contains("\"token\"") && res.contains("\"role\"")) {
+                        String token = res.split("\"token\":\"")[1].split("\"")[0];
+                        ApiClient.setJwtToken(token); // Set in API Client
+                        currentUserRole = res.split("\"role\":\"")[1].split("\"")[0];
+                        currentUserName = res.split("\"name\":\"")[1].split("\"")[0];
+                        success[0] = true;
+                        loginDialog.dispose();
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(loginDialog, "Invalid Credentials", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(loginDialog, "Server error: " + ex.getMessage(), "Connection Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        loginDialog.setVisible(true);
+        return success[0];
     }
 }

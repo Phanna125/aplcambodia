@@ -6,10 +6,10 @@ USE `coffee_shop`;
 
 -- 1. Insert Initial Users
 INSERT INTO `users` (`id`, `role`, `name`, `email`, `password_hash`) VALUES
-(1, 'ADMIN', 'Shop Owner Admin', 'admin@coffeeshop.com', '$2a$10$e7q9VwO8sT1s0...adminpasshash'),
-(2, 'BARISTA', 'Sokha Barista', 'barista@coffeeshop.com', '$2a$10$e7q9VwO8sT1s0...baristapasshash'),
-(3, 'CASHIER', 'Dara Cashier', 'cashier@coffeeshop.com', '$2a$10$e7q9VwO8sT1s0...cashierpasshash'),
-(4, 'CUSTOMER', 'Bopha Customer', 'bopha@gmail.com', '$2a$10$e7q9VwO8sT1s0...customerpasshash');
+(1, 'ADMIN', 'Shop Owner Admin', 'admin@coffeeshop.com', 'admin123'),
+(2, 'BARISTA', 'Sokha Barista', 'barista@coffeeshop.com', 'barista123'),
+(3, 'CASHIER', 'Dara Cashier', 'cashier@coffeeshop.com', 'cashier123'),
+(4, 'CUSTOMER', 'Bopha Customer', 'bopha@gmail.com', 'customer123');
 
 -- 2. Insert Categories
 INSERT INTO `categories` (`id`, `name`) VALUES

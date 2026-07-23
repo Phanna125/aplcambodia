@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import com.coffeeshop.security.RequireRole;
 
 import java.util.List;
 
@@ -42,12 +43,14 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "Create a new order (Cashier / Customer)")
+    @RequireRole({"CASHIER", "CUSTOMER"})
     public Order createOrder(@RequestBody OrderRequestDTO dto) {
         return orderService.createOrder(dto);
     }
 
     @PatchMapping("/{id}/status")
     @Operation(summary = "Update order status (PENDING -> BREWING -> COMPLETED)")
+    @RequireRole({"BARISTA", "ADMIN"})
     public Order updateOrderStatus(@PathVariable Long id, @RequestBody OrderStatusUpdateDTO dto) {
         return orderService.updateOrderStatus(id, dto.getStatus());
     }

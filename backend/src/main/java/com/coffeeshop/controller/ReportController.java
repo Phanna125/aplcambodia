@@ -46,6 +46,47 @@ public class ReportController {
         metrics.put("brewingCount", brewingOrders);
         metrics.put("completedCount", completedOrders);
 
+        // Top Selling Items (from completed orders)
+        Map<String, Integer> itemCounts = orders.stream()
+                .filter(o -> o.getStatus() == Order.Status.COMPLETED)
+                .flatMap(o -> o.getOrderItems().stream())
+                .collect(java.util.stream.Collectors.groupingBy(
+                        oi -> oi.getMenuItem().getName(),
+                        java.util.stream.Collectors.summingInt(oi -> oi.getQuantity())
+                ));
+
+        List<Map<String, Object>> topItems = itemCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(5)
+                .map(e -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("name", e.getKey());
+                    map.put("quantity", e.getValue());
+                    return map;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        metrics.put("topItems", topItems);
+
+        // Peak Business Hours (from completed orders)
+        Map<Integer, Long> hourCounts = orders.stream()
+                .filter(o -> o.getStatus() == Order.Status.COMPLETED && o.getCreatedAt() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        o -> o.getCreatedAt().getHour(),
+                        java.util.stream.Collectors.counting()
+                ));
+
+        List<Map<String, Object>> peakHours = hourCounts.entrySet().stream()
+                .sorted(Map.Entry.<Integer, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(e -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("hour", e.getKey());
+                    map.put("orders", e.getValue());
+                    return map;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        metrics.put("peakHours", peakHours);
+
         return metrics;
     }
 }

@@ -36,6 +36,10 @@ public class OrderService {
         return orderRepository.findByStatus(status);
     }
 
+    public List<Order> getOrdersByCustomerId(Long customerId) {
+        return orderRepository.findByCustomerId(customerId);
+    }
+
     public Order getOrderById(Long id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
@@ -44,11 +48,33 @@ public class OrderService {
     @Transactional
     public Order createOrder(OrderRequestDTO dto) {
         Order order = new Order();
-        if (dto.getCustomerId() != null) {
+        if (dto.getGuestName() != null && !dto.getGuestName().trim().isEmpty()) {
+            String guestName = "Guest: " + dto.getGuestName().trim();
+            User guestUser = userRepository.findByName(guestName).orElse(null);
+            if (guestUser == null) {
+                guestUser = new User();
+                guestUser.setName(guestName);
+                String emailPrefix = dto.getGuestName().replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                if (emailPrefix.isEmpty()) emailPrefix = "guest";
+                guestUser.setEmail(emailPrefix + "_" + System.currentTimeMillis() + "@guest.local");
+                guestUser.setRole(User.Role.CUSTOMER);
+                guestUser.setPasswordHash("guest");
+                guestUser = userRepository.save(guestUser);
+            }
+            order.setCustomer(guestUser);
+        } else if (dto.getCustomerId() != null) {
             User customer = userRepository.findById(dto.getCustomerId()).orElse(null);
             order.setCustomer(customer);
         }
-        order.setStatus(Order.Status.PENDING);
+        if (dto.getInitialStatus() != null) {
+            try {
+                order.setStatus(Order.Status.valueOf(dto.getInitialStatus()));
+            } catch (IllegalArgumentException e) {
+                order.setStatus(Order.Status.PENDING);
+            }
+        } else {
+            order.setStatus(Order.Status.PENDING);
+        }
 
         BigDecimal calculatedTotal = BigDecimal.ZERO;
 

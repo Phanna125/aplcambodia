@@ -41,6 +41,12 @@ public class OrderController {
         return orderService.getOrderById(id);
     }
 
+    @GetMapping("/customer/{id}")
+    @Operation(summary = "Get orders by customer ID")
+    public List<Order> getOrdersByCustomer(@PathVariable Long id) {
+        return orderService.getOrdersByCustomerId(id);
+    }
+
     @PostMapping
     @Operation(summary = "Create a new order (Cashier / Customer)")
     @RequireRole({"CASHIER", "CUSTOMER"})
@@ -48,9 +54,9 @@ public class OrderController {
         return orderService.createOrder(dto);
     }
 
-    @PatchMapping("/{id}/status")
+    @PutMapping("/{id}/status")
     @Operation(summary = "Update order status (PENDING -> BREWING -> COMPLETED)")
-    @RequireRole({"BARISTA", "ADMIN"})
+    @RequireRole({"BARISTA", "ADMIN", "CASHIER"})
     public Order updateOrderStatus(@PathVariable Long id, @RequestBody OrderStatusUpdateDTO dto) {
         return orderService.updateOrderStatus(id, dto.getStatus());
     }

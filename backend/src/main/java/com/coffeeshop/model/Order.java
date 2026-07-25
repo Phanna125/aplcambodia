@@ -11,7 +11,7 @@ import java.util.List;
 public class Order {
 
     public enum Status {
-        PENDING, BREWING, COMPLETED, CANCELLED
+        AWAITING_PAYMENT, PENDING, BREWING, COMPLETED, CANCELLED
     }
 
     @Id

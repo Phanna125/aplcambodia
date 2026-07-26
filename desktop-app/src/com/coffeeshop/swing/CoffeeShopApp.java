@@ -22,6 +22,7 @@ public class CoffeeShopApp extends JFrame {
     private static String currentUserRole = null;
     private static String currentUserName = null;
     private static Long currentUserId = null;
+    private static boolean isGuestMode = false;
 
     // Theme Colors
     private static final Color COLOR_PRIMARY = new Color(111, 78, 55);
@@ -37,7 +38,7 @@ public class CoffeeShopApp extends JFrame {
     }
 
     static class MenuItem {
-        Long id; String name; double basePrice; Category category; boolean active;
+        Long id; String name; double basePrice; Category category; boolean active; String imageUrl;
         @Override public String toString() { return name + " ($" + String.format("%.2f", basePrice) + ")"; }
     }
 
@@ -49,8 +50,12 @@ public class CoffeeShopApp extends JFrame {
         Long id; String name;
     }
 
+    static class OrderItem {
+        Long id; MenuItem menuItem; Integer quantity; List<Customization> customizations = new ArrayList<>();
+    }
+
     static class Order {
-        Long id; User customer; String status; double totalAmount;
+        Long id; User customer; String status; double totalAmount; String createdAt; List<OrderItem> orderItems = new ArrayList<>();
     }
 
     static class OrderItemRequestDTO {
@@ -283,6 +288,18 @@ public class CoffeeShopApp extends JFrame {
             if (!"All Items".equals(categoryFilter) && item.category != null && !item.category.name.equals(categoryFilter)) continue;
 
             JButton btn = new JButton("<html><center><b>" + item.name + "</b><br/><font color='#6F4E37'>$" + String.format("%.2f", item.basePrice) + "</font></center></html>");
+            if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+                try {
+                    URL imageUrl = new URL("http://localhost:8080" + item.imageUrl);
+                    ImageIcon icon = new ImageIcon(javax.imageio.ImageIO.read(imageUrl));
+                    Image img = icon.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
+                    btn.setIcon(new ImageIcon(img));
+                    btn.setHorizontalTextPosition(SwingConstants.CENTER);
+                    btn.setVerticalTextPosition(SwingConstants.BOTTOM);
+                } catch (Exception ex) {
+                    System.err.println("Failed to load image for " + item.name);
+                }
+            }
             btn.setFont(new Font("SansSerif", Font.PLAIN, 13));
             btn.setBackground(Color.WHITE);
             btn.setFocusPainted(false);
@@ -422,7 +439,7 @@ public class CoffeeShopApp extends JFrame {
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         panel.add(title, BorderLayout.NORTH);
 
-        String[] columns = {"Order ID", "Customer", "Total", "Status", "Action"};
+        String[] columns = {"Order ID", "Customer", "Items", "Total", "Status", "Action"};
         queueTableModel = new DefaultTableModel(columns, 0);
         JTable queueTable = new JTable(queueTableModel);
         queueTable.setRowHeight(30);
@@ -458,7 +475,13 @@ public class CoffeeShopApp extends JFrame {
         queueTableModel.setRowCount(0);
         for (Order o : orderQueue) {
             String cName = o.customer != null ? o.customer.name : "Walk-in";
-            queueTableModel.addRow(new Object[]{ "#" + o.id, cName, "$" + String.format("%.2f", o.totalAmount), o.status,
+            String itemsStr = "";
+            if (o.orderItems != null && !o.orderItems.isEmpty()) {
+                itemsStr = o.orderItems.stream()
+                        .map(item -> item.quantity + "x " + (item.menuItem != null ? item.menuItem.name : "Unknown"))
+                        .collect(Collectors.joining(", "));
+            }
+            queueTableModel.addRow(new Object[]{ "#" + o.id, cName, itemsStr, "$" + String.format("%.2f", o.totalAmount), o.status,
                     o.status.equals("PENDING") ? "Brew Drink" : o.status.equals("BREWING") ? "Complete Order" : "Done"
             });
         }
@@ -607,8 +630,24 @@ public class CoffeeShopApp extends JFrame {
         JTextField nameField = new JTextField();
         JTextField priceField = new JTextField();
         JComboBox<Category> catBox = new JComboBox<>(categories.toArray(new Category[0]));
+        
+        JLabel imageLabel = new JLabel("No image selected");
+        JButton uploadBtn = new JButton("Upload Image...");
+        final String[] uploadedUrl = {null};
+        uploadBtn.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                try {
+                    String url = ApiClient.uploadFile("/upload", fileChooser.getSelectedFile());
+                    uploadedUrl[0] = url;
+                    imageLabel.setText("Image Uploaded!");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Upload failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
 
-        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox };
+        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox, "Image:", uploadBtn, imageLabel };
         int option = JOptionPane.showConfirmDialog(this, message, "Add Menu Item", JOptionPane.OK_CANCEL_OPTION);
         if (option == JOptionPane.OK_OPTION) {
             try {
@@ -617,6 +656,7 @@ public class CoffeeShopApp extends JFrame {
                 newItem.basePrice = Double.parseDouble(priceField.getText().trim());
                 newItem.category = (Category) catBox.getSelectedItem();
                 newItem.active = true;
+                newItem.imageUrl = uploadedUrl[0];
 
                 ApiClient.post("/menu/items", newItem, MenuItem.class);
                 loadDataFromApi();
@@ -636,14 +676,31 @@ public class CoffeeShopApp extends JFrame {
         for (int i = 0; i < categories.size(); i++) {
             if (categories.get(i).id.equals(item.category.id)) catBox.setSelectedIndex(i);
         }
+        
+        JLabel imageLabel = new JLabel(item.imageUrl != null ? "Has image" : "No image selected");
+        JButton uploadBtn = new JButton("Upload Image...");
+        final String[] uploadedUrl = {item.imageUrl};
+        uploadBtn.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                try {
+                    String url = ApiClient.uploadFile("/upload", fileChooser.getSelectedFile());
+                    uploadedUrl[0] = url;
+                    imageLabel.setText("Image Uploaded!");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Upload failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
 
-        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox };
+        Object[] message = { "Drink Name:", nameField, "Base Price ($):", priceField, "Category:", catBox, "Image:", uploadBtn, imageLabel };
         int option = JOptionPane.showConfirmDialog(this, message, "Edit Menu Item", JOptionPane.OK_CANCEL_OPTION);
         if (option == JOptionPane.OK_OPTION) {
             try {
                 item.name = nameField.getText().trim();
                 item.basePrice = Double.parseDouble(priceField.getText().trim());
                 item.category = (Category) catBox.getSelectedItem();
+                item.imageUrl = uploadedUrl[0];
 
                 ApiClient.put("/menu/items/" + item.id, item, MenuItem.class);
                 loadDataFromApi();
@@ -716,6 +773,7 @@ public class CoffeeShopApp extends JFrame {
             
             if (metrics.containsKey("topItems")) {
                 summary.append("--- Top Selling Items ---\n");
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> topItems = (List<Map<String, Object>>) metrics.get("topItems");
                 for (Map<String, Object> item : topItems) {
                     summary.append("- ").append(item.get("name")).append(" (").append(((Number)item.get("quantity")).intValue()).append(" sold)\n");
@@ -725,6 +783,7 @@ public class CoffeeShopApp extends JFrame {
             
             if (metrics.containsKey("peakHours")) {
                 summary.append("--- Peak Business Hours ---\n");
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> peakHours = (List<Map<String, Object>>) metrics.get("peakHours");
                 for (Map<String, Object> ph : peakHours) {
                     summary.append("- Hour ").append(((Number)ph.get("hour")).intValue()).append(":00 (").append(((Number)ph.get("orders")).intValue()).append(" orders)\n");
@@ -770,19 +829,36 @@ public class CoffeeShopApp extends JFrame {
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         panel.add(title, BorderLayout.NORTH);
 
-        String[] columns = {"Order ID", "Date", "Total", "Status"};
+        String[] columns = {"Order ID", "Date", "Customer", "Items", "Total", "Status"};
         DefaultTableModel customerOrdersModel = new DefaultTableModel(columns, 0);
         JTable table = new JTable(customerOrdersModel);
         table.setRowHeight(30);
 
         JButton refreshBtn = new JButton("🔄 Refresh My Orders");
         refreshBtn.addActionListener(e -> {
-            if (currentUserId == null) return;
             try {
-                List<Order> myOrders = ApiClient.get("/orders/customer/" + currentUserId, new TypeToken<List<Order>>(){});
+                List<Order> myOrders;
+                if (isGuestMode) {
+                    myOrders = ApiClient.get("/orders", new TypeToken<List<Order>>(){});
+                } else if (currentUserId != null) {
+                    myOrders = ApiClient.get("/orders/customer/" + currentUserId, new TypeToken<List<Order>>(){});
+                } else {
+                    return;
+                }
+                
                 customerOrdersModel.setRowCount(0);
                 for (Order o : myOrders) {
-                    customerOrdersModel.addRow(new Object[]{ "#" + o.id, o.status, "$" + String.format("%.2f", o.totalAmount), o.status });
+                    String itemsStr = "";
+                    if (o.orderItems != null && !o.orderItems.isEmpty()) {
+                        itemsStr = o.orderItems.stream()
+                                .map(item -> item.quantity + "x " + (item.menuItem != null ? item.menuItem.name : "Unknown"))
+                                .collect(Collectors.joining(", "));
+                    }
+                    
+                    String displayDate = o.createdAt != null ? o.createdAt.split("T")[0] : "Unknown";
+                    String cName = o.customer != null ? o.customer.name : "Walk-in";
+
+                    customerOrdersModel.addRow(new Object[]{ "#" + o.id, displayDate, cName, itemsStr, "$" + String.format("%.2f", o.totalAmount), o.status });
                 }
             } catch (Exception ex) {
                 System.err.println("Failed to fetch customer orders: " + ex.getMessage());
@@ -922,6 +998,7 @@ public class CoffeeShopApp extends JFrame {
         
         JButton guestBtn = new JButton("Continue as Guest");
         guestBtn.addActionListener(e -> {
+            isGuestMode = true;
             emailField.setText("bopha@gmail.com");
             passField.setText("customer123");
             loginBtn.doClick();

@@ -2,7 +2,6 @@ package com.coffeeshop.controller;
 
 import com.coffeeshop.model.Order;
 import com.coffeeshop.service.OrderService;
-import com.coffeeshop.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;

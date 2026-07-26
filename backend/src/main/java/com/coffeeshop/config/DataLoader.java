@@ -5,7 +5,6 @@ import com.coffeeshop.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 
-import java.math.BigDecimal;
 
 // @Component // Disabled so we can rely on data.sql instead of auto-seeding
 public class DataLoader implements CommandLineRunner {

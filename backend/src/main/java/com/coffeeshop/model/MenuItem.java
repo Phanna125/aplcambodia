@@ -25,6 +25,9 @@ public class MenuItem {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -52,6 +55,9 @@ public class MenuItem {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

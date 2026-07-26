@@ -10,6 +10,11 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.PrintWriter;
+import java.io.OutputStreamWriter;
+import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 
 public class ApiClient {
@@ -120,6 +125,67 @@ public class ApiClient {
                 throw new Exception("HTTP Error " + status + ": " + response.toString());
             }
             return response.toString();
+        }
+    }
+
+    public static String uploadFile(String path, File file) throws Exception {
+        String boundary = "===" + System.currentTimeMillis() + "===";
+        URL url = URI.create(BASE_URL + path).toURL();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setUseCaches(false);
+        conn.setDoOutput(true);
+        conn.setDoInput(true);
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if (jwtToken != null && !jwtToken.isEmpty()) {
+            conn.setRequestProperty("Authorization", "Bearer " + jwtToken);
+        }
+
+        try (OutputStream outputStream = conn.getOutputStream();
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8), true)) {
+            
+            writer.append("--" + boundary).append("\r\n");
+            writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"" + file.getName() + "\"").append("\r\n");
+            String mimeType = Files.probeContentType(file.toPath());
+            if (mimeType == null) mimeType = "application/octet-stream";
+            writer.append("Content-Type: " + mimeType).append("\r\n");
+            writer.append("\r\n").flush();
+            
+            try (FileInputStream inputStream = new FileInputStream(file)) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.flush();
+            }
+            
+            writer.append("\r\n").flush();
+            writer.append("--" + boundary + "--").append("\r\n").flush();
+        }
+
+        int status = conn.getResponseCode();
+        if (status >= 400) {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8))) {
+                StringBuilder errorMsg = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    errorMsg.append(line);
+                }
+                throw new Exception("HTTP Upload Error " + status + ": " + errorMsg.toString());
+            }
+        }
+        
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                response.append(line);
+            }
+            // Response is JSON: {"imageUrl": "/uploads/..."}
+            // Parse with gson or simple substring since we know format
+            java.util.Map<String, String> result = gson.fromJson(response.toString(), new TypeToken<java.util.Map<String, String>>(){}.getType());
+            return result.get("imageUrl");
         }
     }
 }

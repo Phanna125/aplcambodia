@@ -98,7 +98,7 @@ public class CoffeeShopApp extends JFrame {
     private JLabel totalOrdersMetricLabel;
 
     public CoffeeShopApp() {
-        setTitle("☕ Coffee Ordering System - Royal University of Phnom Penh (APL)");
+        setTitle("\u2615 Coffee Ordering System - Royal University of Phnom Penh (APL)");
         setSize(1100, 720);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -111,7 +111,7 @@ public class CoffeeShopApp extends JFrame {
         headerPanel.setBackground(COLOR_PRIMARY);
         headerPanel.setBorder(new EmptyBorder(12, 20, 12, 20));
 
-        JLabel titleLabel = new JLabel("☕ COFFEE ORDERING SYSTEM - Logged in as: " + currentUserName + " (" + currentUserRole + ")");
+        JLabel titleLabel = new JLabel("\u2615 COFFEE ORDERING SYSTEM - Logged in as: " + currentUserName + " (" + currentUserRole + ")");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
         titleLabel.setForeground(Color.WHITE);
 
@@ -126,18 +126,18 @@ public class CoffeeShopApp extends JFrame {
         
         // Build UI based on role
         if ("ADMIN".equals(currentUserRole)) {
-            mainTabbedPane.addTab("🛒 Cashier POS", createCashierPOSPanel());
-            mainTabbedPane.addTab("💳 Payment Approval", createCashierApprovalPanel());
-            mainTabbedPane.addTab("☕ Barista Queue", createBaristaQueuePanel());
-            mainTabbedPane.addTab("⚙️ Admin Dashboard & Menu", createAdminPanel());
+            mainTabbedPane.addTab("\uD83D\uDED2 Cashier POS", createCashierPOSPanel());
+            mainTabbedPane.addTab("\uD83D\uDCB3 Payment Approval", createCashierApprovalPanel());
+            mainTabbedPane.addTab("\u2615 Barista Queue", createBaristaQueuePanel());
+            mainTabbedPane.addTab("\u2699\uFE0F Admin Dashboard & Menu", createAdminPanel());
         } else if ("CASHIER".equals(currentUserRole)) {
-            mainTabbedPane.addTab("🛒 Cashier POS", createCashierPOSPanel());
-            mainTabbedPane.addTab("💳 Payment Approval", createCashierApprovalPanel());
+            mainTabbedPane.addTab("\uD83D\uDED2 Cashier POS", createCashierPOSPanel());
+            mainTabbedPane.addTab("\uD83D\uDCB3 Payment Approval", createCashierApprovalPanel());
         } else if ("BARISTA".equals(currentUserRole)) {
-            mainTabbedPane.addTab("☕ Barista Queue", createBaristaQueuePanel());
+            mainTabbedPane.addTab("\u2615 Barista Queue", createBaristaQueuePanel());
         } else {
-            mainTabbedPane.addTab("🛒 Menu", createCashierPOSPanel());
-            mainTabbedPane.addTab("📦 My Orders", createCustomerOrdersPanel());
+            mainTabbedPane.addTab("\uD83D\uDED2 Menu", createCashierPOSPanel());
+            mainTabbedPane.addTab("\uD83D\uDCE6 My Orders", createCustomerOrdersPanel());
         }
         
         // Start background poll for barista queue
@@ -198,7 +198,7 @@ public class CoffeeShopApp extends JFrame {
         categoryCombo.addActionListener(e -> refreshDrinkGrid((String) categoryCombo.getSelectedItem()));
         categoryBar.add(categoryCombo);
 
-        JButton refreshMenuBtn = new JButton("🔄 Refresh Menu");
+        JButton refreshMenuBtn = new JButton("\uD83D\uDD04 Refresh Menu");
         refreshMenuBtn.addActionListener(e -> { loadDataFromApi(); refreshDrinkGrid((String) categoryCombo.getSelectedItem()); });
         categoryBar.add(refreshMenuBtn);
 
@@ -233,22 +233,22 @@ public class CoffeeShopApp extends JFrame {
         cartTotalLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
         cartTotalLabel.setForeground(COLOR_PRIMARY);
 
-        JButton clearBtn = new JButton("🗑️ Clear Cart");
+        JButton clearBtn = new JButton("\uD83D\uDDD1\uFE0F Clear Cart");
         clearBtn.addActionListener(e -> clearCart());
 
-        JButton checkoutCashBtn = new JButton("💵 Checkout (Cash)");
+        JButton checkoutCashBtn = new JButton("\uD83D\uDCB5 Checkout (Cash)");
         checkoutCashBtn.setBackground(COLOR_PRIMARY);
         checkoutCashBtn.setForeground(Color.WHITE);
         checkoutCashBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
         checkoutCashBtn.addActionListener(e -> processCheckout("CASH", "PENDING"));
 
-        JButton checkoutCardBtn = new JButton("💳 Checkout (Card)");
+        JButton checkoutCardBtn = new JButton("\uD83D\uDCB3 Checkout (Card)");
         checkoutCardBtn.setBackground(COLOR_SECONDARY);
         checkoutCardBtn.setForeground(Color.WHITE);
         checkoutCardBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
         checkoutCardBtn.addActionListener(e -> processCheckout("CARD", "PENDING"));
 
-        JButton checkoutQRBtn = new JButton("📱 Checkout (KHQR Code)");
+        JButton checkoutQRBtn = new JButton("\uD83D\uDCF1 Checkout (KHQR Code)");
         checkoutQRBtn.setBackground(COLOR_ACCENT);
         checkoutQRBtn.setForeground(Color.WHITE);
         checkoutQRBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
@@ -258,7 +258,7 @@ public class CoffeeShopApp extends JFrame {
         checkoutBottomPanel.add(clearBtn);
 
         if ("CUSTOMER".equals(currentUserRole)) {
-            JButton sendToCashierBtn = new JButton("📤 Send Order to Cashier");
+            JButton sendToCashierBtn = new JButton("\uD83D\uDCE4 Send Order to Cashier");
             sendToCashierBtn.setBackground(COLOR_PRIMARY);
             sendToCashierBtn.setForeground(Color.WHITE);
             sendToCashierBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
@@ -421,7 +421,7 @@ public class CoffeeShopApp extends JFrame {
             JTextArea textArea = new JTextArea(receipt.toString());
             textArea.setEditable(false);
             textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-            JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "✅ Order #" + newOrder.id + " Created Successfully!", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "\u2705 Order #" + newOrder.id + " Created Successfully!", JOptionPane.INFORMATION_MESSAGE);
             
             clearCart();
         } catch (Exception ex) {
@@ -435,7 +435,7 @@ public class CoffeeShopApp extends JFrame {
         panel.setBackground(COLOR_BG);
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        JLabel title = new JLabel("☕ Real-time Barista Order Queue");
+        JLabel title = new JLabel("\u2615 Real-time Barista Order Queue");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         panel.add(title, BorderLayout.NORTH);
 
@@ -450,13 +450,13 @@ public class CoffeeShopApp extends JFrame {
         JPanel controlBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         controlBar.setOpaque(false);
 
-        JButton refreshBtn = new JButton("🔄 Refresh Queue");
+        JButton refreshBtn = new JButton("\uD83D\uDD04 Refresh Queue");
         refreshBtn.addActionListener(e -> fetchOrderQueue());
 
-        JButton brewBtn = new JButton("▶️ Mark BREWING");
+        JButton brewBtn = new JButton("\u25B6\uFE0F Mark BREWING");
         brewBtn.addActionListener(e -> changeSelectedOrderStatus(queueTable, "BREWING"));
 
-        JButton completeBtn = new JButton("✅ Mark COMPLETED");
+        JButton completeBtn = new JButton("\u2705 Mark COMPLETED");
         completeBtn.setBackground(COLOR_ACCENT);
         completeBtn.setForeground(Color.WHITE);
         completeBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
@@ -551,19 +551,19 @@ public class CoffeeShopApp extends JFrame {
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         actionPanel.setOpaque(false);
 
-        JButton addDrinkBtn = new JButton("➕ Add Drink");
+        JButton addDrinkBtn = new JButton("\u2795 Add Drink");
         addDrinkBtn.addActionListener(e -> openAddDrinkDialog());
 
-        JButton editDrinkBtn = new JButton("✏️ Edit Drink");
+        JButton editDrinkBtn = new JButton("\u270F\uFE0F Edit Drink");
         editDrinkBtn.addActionListener(e -> {
             int row = menuTable.getSelectedRow();
             if (row >= 0) openEditDrinkDialog(menuItems.get(row));
         });
 
-        JButton manageCatBtn = new JButton("📁 Manage Categories");
+        JButton manageCatBtn = new JButton("\uD83D\uDCC1 Manage Categories");
         manageCatBtn.addActionListener(e -> openManageCategoriesDialog());
 
-        JButton toggleStatusBtn = new JButton("🔄 Toggle Stock");
+        JButton toggleStatusBtn = new JButton("\uD83D\uDD04 Toggle Stock");
         toggleStatusBtn.addActionListener(e -> {
             int row = menuTable.getSelectedRow();
             if (row >= 0) {
@@ -579,7 +579,7 @@ public class CoffeeShopApp extends JFrame {
             }
         });
 
-        JButton deleteDrinkBtn = new JButton("🗑️ Delete Drink");
+        JButton deleteDrinkBtn = new JButton("\uD83D\uDDD1\uFE0F Delete Drink");
         deleteDrinkBtn.setBackground(COLOR_DANGER);
         deleteDrinkBtn.setForeground(Color.WHITE);
         deleteDrinkBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
@@ -600,7 +600,7 @@ public class CoffeeShopApp extends JFrame {
             }
         });
 
-        JButton generateReportBtn = new JButton("📄 Generate Report Summary");
+        JButton generateReportBtn = new JButton("\uD83D\uDCC4 Generate Report Summary");
         generateReportBtn.addActionListener(e -> generateReportSummary());
 
         actionPanel.add(generateReportBtn);
@@ -825,7 +825,7 @@ public class CoffeeShopApp extends JFrame {
         panel.setBackground(COLOR_BG);
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        JLabel title = new JLabel("📦 My Order History & Live Status");
+        JLabel title = new JLabel("\uD83D\uDCE6 My Order History & Live Status");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         panel.add(title, BorderLayout.NORTH);
 
@@ -834,7 +834,7 @@ public class CoffeeShopApp extends JFrame {
         JTable table = new JTable(customerOrdersModel);
         table.setRowHeight(30);
 
-        JButton refreshBtn = new JButton("🔄 Refresh My Orders");
+        JButton refreshBtn = new JButton("\uD83D\uDD04 Refresh My Orders");
         refreshBtn.addActionListener(e -> {
             try {
                 List<Order> myOrders;
@@ -883,7 +883,7 @@ public class CoffeeShopApp extends JFrame {
         panel.setBackground(COLOR_BG);
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        JLabel title = new JLabel("💳 Customer Payment Approval");
+        JLabel title = new JLabel("\uD83D\uDCB3 Customer Payment Approval");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         panel.add(title, BorderLayout.NORTH);
 
@@ -907,7 +907,7 @@ public class CoffeeShopApp extends JFrame {
             }
         };
 
-        JButton refreshBtn = new JButton("🔄 Refresh Queue");
+        JButton refreshBtn = new JButton("\uD83D\uDD04 Refresh Queue");
         refreshBtn.addActionListener(e -> fetchAwaitingOrders.run());
         
         java.awt.event.ActionListener approveAction = e -> {
@@ -921,7 +921,7 @@ public class CoffeeShopApp extends JFrame {
             String paymentMethod = ((JButton)e.getSource()).getText().replace("Approve (", "").replace(")", "");
             try {
                 ApiClient.put("/orders/" + orderId + "/status", new OrderStatusUpdateDTO("PENDING"), Order.class);
-                JOptionPane.showMessageDialog(this, "✅ Order " + idStr + " Approved!\nPayment: " + paymentMethod, "Success", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "\u2705 Order " + idStr + " Approved!\nPayment: " + paymentMethod, "Success", JOptionPane.INFORMATION_MESSAGE);
                 fetchAwaitingOrders.run();
                 fetchOrderQueue();
                 updateAdminMetrics();

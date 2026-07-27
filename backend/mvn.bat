@@ -1,23 +1,44 @@
 @echo off
-rem Auto-detect JAVA_HOME if not set or path does not exist
-if not exist "%JAVA_HOME%\bin\java.exe" (
-    set "JAVA_HOME="
-    for /d %%D in ("C:\Program Files\Eclipse Adoptium\jdk*" "C:\Program Files\Java\jdk*" "C:\Program Files\Amazon Corretto\jdk*") do (
-        if exist "%%D\bin\java.exe" set "JAVA_HOME=%%D"
-    )
+setlocal enabledelayedexpansion
+
+if exist "%JAVA_HOME%\bin\java.exe" goto HAVE_JAVA
+
+if exist "C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin\java.exe" (
+    set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot"
+    goto HAVE_JAVA
 )
 
-if defined JAVA_HOME (
-    set "PATH=%JAVA_HOME%\bin;%PATH%"
+for /d %%D in ("C:\Program Files\Eclipse Adoptium\jdk*") do (
+    if exist "%%D\bin\java.exe" set "JAVA_HOME=%%D" & goto HAVE_JAVA
 )
 
-rem Auto-detect Maven executable
+for /d %%D in ("C:\Program Files\Java\jdk*") do (
+    if exist "%%D\bin\java.exe" set "JAVA_HOME=%%D" & goto HAVE_JAVA
+)
+
+for /d %%D in ("C:\Program Files\Amazon Corretto\jdk*") do (
+    if exist "%%D\bin\java.exe" set "JAVA_HOME=%%D" & goto HAVE_JAVA
+)
+
+:HAVE_JAVA
+if defined JAVA_HOME set "PATH=%JAVA_HOME%\bin;%PATH%"
+
 set "MVN_CMD=mvn"
 where mvn >nul 2>&1
-if %errorlevel% neq 0 (
-    for /d %%I in ("C:\Program Files\JetBrains\IntelliJ IDEA*") do (
-        if exist "%%I\plugins\maven\lib\maven3\bin\mvn.cmd" set "MVN_CMD=%%I\plugins\maven\lib\maven3\bin\mvn.cmd"
+if %errorlevel% equ 0 goto RUN_APP
+
+if exist "C:\Program Files\JetBrains\IntelliJ IDEA 2025.2.5\plugins\maven\lib\maven3\bin\mvn.cmd" (
+    set "MVN_CMD=C:\Program Files\JetBrains\IntelliJ IDEA 2025.2.5\plugins\maven\lib\maven3\bin\mvn.cmd"
+    goto RUN_APP
+)
+
+for /d %%I in ("C:\Program Files\JetBrains\IntelliJ IDEA*") do (
+    if exist "%%I\plugins\maven\lib\maven3\bin\mvn.cmd" (
+        set "MVN_CMD=%%I\plugins\maven\lib\maven3\bin\mvn.cmd"
+        goto RUN_APP
     )
 )
 
+:RUN_APP
 "%MVN_CMD%" %*
+endlocal
